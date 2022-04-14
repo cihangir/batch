@@ -20,7 +20,7 @@ func TestSize(t *testing.T) {
 
 	go func() {
 		for i := 0; i < totalItems; i++ {
-			batch.Go(ctx, i)
+			_ = batch.Go(ctx, i)
 		}
 	}()
 
@@ -49,11 +49,11 @@ func TestMaxWait(t *testing.T) {
 
 	go func() {
 		for i := 0; i < totalItems; i++ {
-			batch.Go(ctx, i)
+			_ = batch.Go(ctx, i)
 		}
 	}()
 
-	batch.Process(ctx, func(ctx context.Context, batch []int) error {
+	_ = batch.Process(ctx, func(ctx context.Context, batch []int) error {
 		if len(batch) != totalItems {
 			t.Fatalf("invalid batch size: got: %d, want: %d", len(batch), totalItems)
 		}
@@ -69,12 +69,12 @@ func TestContextCancel(t *testing.T) {
 	batch := New[int](batchSize, 100*time.Second)
 
 	for i := 0; i < totalItems; i++ {
-		go batch.Add(ctx, i)
+		go func(i int) { _ = batch.Add(ctx, i) }(i)
 	}
 
 	cancel()
 
-	batch.Process(ctx, func(ctx context.Context, batch []int) error {
+	_ = batch.Process(ctx, func(ctx context.Context, batch []int) error {
 		if len(batch) != totalItems {
 			t.Fatalf("invalid batch size: got: %d, want: %d", len(batch), totalItems)
 		}
@@ -112,7 +112,7 @@ func TestAddWithLaterClosedBatch(t *testing.T) {
 	for i := 0; i < totalItems; i++ {
 		go func(i int) {
 			wg.Done() // just to make sure the go routine is started
-			batch.Add(ctx, i)
+			_ = batch.Add(ctx, i)
 		}(i)
 	}
 	// wait until we have a full batch and a waiting Add op.
@@ -171,7 +171,7 @@ func TestGoWithLaterClosedBatch(t *testing.T) {
 	for i := 0; i < totalItems; i++ {
 		go func(i int) {
 			wg.Done() // just to make sure the go routine is started
-			batch.Go(ctx, i)
+			_ = batch.Go(ctx, i)
 		}(i)
 	}
 	// wait until we have a full batch and a waiting Add op.
@@ -207,7 +207,7 @@ func TestBatchWithItemsWithoutProcessor(t *testing.T) {
 	batch := New[int](100, 100*time.Second)
 
 	for i := 0; i < 10; i++ {
-		batch.Go(ctx, i)
+		_ = batch.Go(ctx, i)
 	}
 
 	cancel()
@@ -225,7 +225,7 @@ func TestAddWithProcessError(t *testing.T) {
 	var internalErr = errors.New("internal error")
 
 	go func() {
-		batch.Process(ctx, func(ctx context.Context, batch []int) error {
+		_ = batch.Process(ctx, func(ctx context.Context, batch []int) error {
 			return internalErr
 		})
 	}()
@@ -248,7 +248,7 @@ func TestDrainItemBuffer(t *testing.T) {
 		close(consumerStarted)
 		// test we only call Process once. If the output channel is closed, we
 		// shouldn't call Process again.
-		batch.Process(ctx, func(ctx context.Context, batch []int) error {
+		_ = batch.Process(ctx, func(ctx context.Context, batch []int) error {
 			return nil
 		})
 		close(processCalled)
@@ -319,7 +319,7 @@ func bench(b *testing.B, batchCount int, interval time.Duration) {
 	count := 0
 	go func() {
 		for i := 0; i < b.N/batchCount; i++ {
-			batch.Process(ctx, func(ctx context.Context, batch []int) error {
+			_ = batch.Process(ctx, func(ctx context.Context, batch []int) error {
 				count = count + len(batch)
 				return nil
 			})
@@ -329,6 +329,6 @@ func bench(b *testing.B, batchCount int, interval time.Duration) {
 		}
 	}()
 	for i := 0; i < b.N; i++ {
-		batch.Go(ctx, i)
+		_ = batch.Go(ctx, i)
 	}
 }
