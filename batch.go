@@ -32,18 +32,28 @@ type ProcessFn[T any] func(ctx context.Context, batch []T) error
 // New creates a new batch processor. Size indicates the maximum number of items
 // that a batch could hold. interval indicates the maximum time a batch can wait
 // to be filled with items.
-func New[T any](size int, interval time.Duration) *Batch[T] {
+func New[T any](options ...Option) (*Batch[T], error) {
+	c := &config{
+		size:     DefaultSize,
+		interval: DefaultInterval,
+	}
+	for _, o := range options {
+		if err := o(c); err != nil {
+			return nil, err
+		}
+	}
+
 	b := &Batch[T]{
 		closeChan: make(chan struct{}),
-		size:      size,
-		interval:  interval,
+		size:      c.size,
+		interval:  c.interval,
 		input:     make(chan inputEnvelope[T]),
 		output:    make(chan outputEnvelope[T]),
 	}
 
 	go b.processor()
 
-	return b
+	return b, nil
 }
 
 // Close closes the batch and stops the processor.

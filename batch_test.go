@@ -16,7 +16,7 @@ func TestSize(t *testing.T) {
 	totalItems := 100
 
 	// make the deadline long so that we have time to process the batches
-	batch := New[int](10, 10*time.Second)
+	batch, _ := New[int](WithSize(batchSize), WithInterval(10*time.Second))
 
 	go func() {
 		for i := 0; i < totalItems; i++ {
@@ -42,10 +42,9 @@ func TestMaxWait(t *testing.T) {
 	defer cancel()
 
 	// make sure we the batch size is less than the added item count
-	batchSize := 100
 	totalItems := 10
 
-	batch := New[int](batchSize, 1*time.Second)
+	batch, _ := New[int](WithSize(100), WithInterval(time.Second))
 
 	go func() {
 		for i := 0; i < totalItems; i++ {
@@ -64,9 +63,8 @@ func TestMaxWait(t *testing.T) {
 func TestContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	batchSize := 100
 	totalItems := 10
-	batch := New[int](batchSize, 100*time.Second)
+	batch, _ := New[int](WithSize(100), WithInterval(10*time.Second))
 
 	for i := 0; i < totalItems; i++ {
 		go func(i int) { _ = batch.Add(ctx, i) }(i)
@@ -86,8 +84,7 @@ func TestAddWithClosedBatch(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	batchSize := 100
-	batch := New[int](batchSize, 100*time.Second)
+	batch, _ := New[int](WithSize(100), WithInterval(10*time.Second))
 	if err := batch.Close(); err != nil {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, nil)
 	}
@@ -104,7 +101,7 @@ func TestAddWithLaterClosedBatch(t *testing.T) {
 	batchSize := 10
 	// add one more item than the batch size, so that Add would block.
 	totalItems := batchSize + 1
-	batch := New[int](batchSize, 100*time.Second)
+	batch, _ := New[int](WithSize(batchSize), WithInterval(10*time.Second))
 
 	var wg sync.WaitGroup
 	wg.Add(totalItems)
@@ -132,8 +129,7 @@ func TestAddWithLaterClosedBatch(t *testing.T) {
 func TestAddWithClosedContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	batchSize := 100
-	batch := New[int](batchSize, 100*time.Second)
+	batch, _ := New[int](WithSize(100), WithInterval(10*time.Second))
 
 	cancel()
 
@@ -146,8 +142,7 @@ func TestGoWithClosedBatch(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	batchSize := 100
-	batch := New[int](batchSize, 100*time.Second)
+	batch, _ := New[int](WithSize(100), WithInterval(10*time.Second))
 	if err := batch.Close(); err != nil {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, nil)
 	}
@@ -163,7 +158,7 @@ func TestGoWithLaterClosedBatch(t *testing.T) {
 
 	batchSize := 10
 	totalItems := batchSize + 1
-	batch := New[int](batchSize, 100*time.Second)
+	batch, _ := New[int](WithSize(batchSize), WithInterval(10*time.Second))
 
 	var wg sync.WaitGroup
 	wg.Add(totalItems)
@@ -191,8 +186,7 @@ func TestGoWithLaterClosedBatch(t *testing.T) {
 func TestGoWithClosedContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	batchSize := 100
-	batch := New[int](batchSize, 100*time.Second)
+	batch, _ := New[int](WithSize(100), WithInterval(10*time.Second))
 
 	cancel()
 
@@ -204,7 +198,7 @@ func TestGoWithClosedContext(t *testing.T) {
 func TestBatchWithItemsWithoutProcessor(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	batch := New[int](100, 100*time.Second)
+	batch, _ := New[int](WithSize(100), WithInterval(10*time.Second))
 
 	for i := 0; i < 10; i++ {
 		_ = batch.Go(ctx, i)
@@ -221,7 +215,7 @@ func TestAddWithProcessError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	batch := New[int](1, 1*time.Second)
+	batch, _ := New[int](WithSize(1), WithInterval(time.Second))
 	var internalErr = errors.New("internal error")
 
 	go func() {
@@ -240,7 +234,7 @@ func TestDrainItemBuffer(t *testing.T) {
 	defer cancel()
 
 	// create a batch config that won't be processed till we close it.
-	batch := New[int](10, 1*time.Second)
+	batch, _ := New[int](WithSize(10), WithInterval(time.Second))
 
 	consumerStarted := make(chan struct{})
 	processCalled := make(chan struct{})
@@ -272,7 +266,7 @@ func TestProcessWithClosedBatch(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	batch := New[int](1, 1*time.Second)
+	batch, _ := New[int](WithSize(1), WithInterval(time.Second))
 
 	if err := batch.Close(); err != nil {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, nil)
@@ -313,18 +307,19 @@ func Benchmark1s(b *testing.B) {
 func bench(b *testing.B, batchCount int, interval time.Duration) {
 	b.ReportAllocs()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	batch := New[int](batchCount, 100*time.Millisecond)
+	batch, _ := New[int](WithSize(batchCount), WithInterval(interval))
 
 	count := 0
 	go func() {
-		for i := 0; i < b.N/batchCount; i++ {
+		n := b.N / batchCount
+		for i := 0; i < n; i++ {
 			_ = batch.Process(ctx, func(ctx context.Context, batch []int) error {
 				count = count + len(batch)
 				return nil
 			})
 			if count == b.N {
 				cancel()
+				return
 			}
 		}
 	}()
