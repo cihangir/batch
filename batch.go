@@ -6,7 +6,8 @@ import (
 	"time"
 )
 
-var ErrClosed = errors.New("closed")
+// ErrBatchClosed indicates that the Batch is closed for new additions.
+var ErrBatchClosed = errors.New("closed")
 
 // Batch holds the input and output channels which are used to process the batch.
 type Batch[T any] struct {
@@ -17,26 +18,27 @@ type Batch[T any] struct {
 	size     int
 	interval time.Duration
 
-	// internal stuff to orchestrate the batch
-	input  chan inputEnvelope[T]
+	// input channel transfers items to the batcher
+	input chan inputEnvelope[T]
+
+	// output channel transfers items to the processor when the "batch" is
+	// ready either the max size is reached or the timeout is reached
 	output chan outputEnvelope[T]
 }
 
+// ProcessFn defines the function signature for the processor.
 type ProcessFn[T any] func(ctx context.Context, batch []T) error
 
 // New creates a new batch processor. Size indicates the maximum number of items
 // that a batch could hold. interval indicates the maximum time a batch can wait
 // to be filled with items.
 func New[T any](size int, interval time.Duration) *Batch[T] {
-	input := make(chan inputEnvelope[T])
-	output := make(chan outputEnvelope[T])
-
 	b := &Batch[T]{
 		closeChan: make(chan struct{}),
 		size:      size,
 		interval:  interval,
-		input:     input,
-		output:    output,
+		input:     make(chan inputEnvelope[T]),
+		output:    make(chan outputEnvelope[T]),
 	}
 
 	go b.processor()
@@ -44,6 +46,7 @@ func New[T any](size int, interval time.Duration) *Batch[T] {
 	return b
 }
 
+// Close closes the batch and stops the processor.
 func (b *Batch[T]) Close() error {
 	close(b.closeChan)
 	return nil
@@ -71,7 +74,7 @@ func (b *Batch[T]) Add(ctx context.Context, item T) error {
 	// We also have the similar check down below.
 	select {
 	case <-b.closeChan:
-		return ErrClosed
+		return ErrBatchClosed
 	default:
 	}
 
@@ -84,7 +87,7 @@ func (b *Batch[T]) Add(ctx context.Context, item T) error {
 
 	select {
 	case <-b.closeChan:
-		return ErrClosed
+		return ErrBatchClosed
 	case <-ctx.Done():
 		return ctx.Err()
 	case b.input <- inputEnvelope:
@@ -100,7 +103,7 @@ func (b *Batch[T]) Go(ctx context.Context, item T) error {
 	// See Add function for the explanation of this check.
 	select {
 	case <-b.closeChan:
-		return ErrClosed
+		return ErrBatchClosed
 	default:
 	}
 
@@ -111,7 +114,7 @@ func (b *Batch[T]) Go(ctx context.Context, item T) error {
 
 	select {
 	case <-b.closeChan:
-		return ErrClosed
+		return ErrBatchClosed
 	case <-ctx.Done():
 		return ctx.Err()
 	case b.input <- inputEnvelope:
@@ -127,7 +130,7 @@ func (b *Batch[T]) Process(ctx context.Context, fn ProcessFn[T]) error {
 	// See Add function for the explanation of this check.
 	select {
 	case <-b.closeChan:
-		return ErrClosed
+		return ErrBatchClosed
 	default:
 	}
 
@@ -139,7 +142,7 @@ func (b *Batch[T]) Process(ctx context.Context, fn ProcessFn[T]) error {
 		return ctx.Err()
 	case batch, ok := <-b.output:
 		if !ok {
-			return ErrClosed
+			return ErrBatchClosed
 		}
 		err := fn(ctx, batch.items)
 		if err != nil {

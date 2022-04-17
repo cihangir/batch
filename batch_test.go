@@ -92,7 +92,7 @@ func TestAddWithClosedBatch(t *testing.T) {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, nil)
 	}
 
-	if err, wanted := batch.Add(ctx, 1), ErrClosed; err != wanted {
+	if err, wanted := batch.Add(ctx, 1), ErrBatchClosed; err != wanted {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, wanted)
 	}
 }
@@ -124,7 +124,7 @@ func TestAddWithLaterClosedBatch(t *testing.T) {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, nil)
 	}
 
-	if err, wanted := batch.Add(ctx, 1), ErrClosed; err != wanted {
+	if err, wanted := batch.Add(ctx, 1), ErrBatchClosed; err != wanted {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, wanted)
 	}
 }
@@ -152,7 +152,7 @@ func TestGoWithClosedBatch(t *testing.T) {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, nil)
 	}
 
-	if err, wanted := batch.Go(ctx, 1), ErrClosed; err != wanted {
+	if err, wanted := batch.Go(ctx, 1), ErrBatchClosed; err != wanted {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, wanted)
 	}
 }
@@ -183,7 +183,7 @@ func TestGoWithLaterClosedBatch(t *testing.T) {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, nil)
 	}
 
-	if err, wanted := batch.Go(ctx, 1), ErrClosed; err != wanted {
+	if err, wanted := batch.Go(ctx, 1), ErrBatchClosed; err != wanted {
 		t.Fatalf("invalid error: got: %v, wanted: %v", err, wanted)
 	}
 }
@@ -281,8 +281,8 @@ func TestProcessWithClosedBatch(t *testing.T) {
 	err := batch.Process(ctx, func(ctx context.Context, batch []int) error {
 		return nil
 	})
-	if err != ErrClosed {
-		t.Fatalf("invalid error: got: %v, wanted: %v", err, ErrClosed)
+	if err != ErrBatchClosed {
+		t.Fatalf("invalid error: got: %v, wanted: %v", err, ErrBatchClosed)
 	}
 }
 
